@@ -1,0 +1,47 @@
+name: StickerLab
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q -o "*.zip"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compilar APK
+        working-directory: stickerlab-android
+        run: gradle assembleRelease --no-daemon --stacktrace
+      - name: Publicar APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp stickerlab-android/app/build/outputs/apk/release/app-release.apk StickerLab.apk
+          gh release delete latest -y --cleanup-tag || true
+          gh release create latest StickerLab.apk --title "StickerLab v1.0.${{ github.run_number }}" --notes "APK para Android 8 o superior"
+      - name: Preparar web
+        run: |
+          mkdir -p _site
+          cp stickerlab-android/app/src/main/assets/index.html _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
